@@ -1,12 +1,17 @@
 import { useState, useEffect, useMemo } from 'react'
 import { Package, DollarSign, TrendingUp, Edit3, Search, Star } from 'lucide-react'
+
 import AdminSidebar from '../components/AdminSidebar.jsx'
 import ProductFormModal from '../components/ProductFormModal.jsx'
+
 import { getProducts, updateProduct } from '../services/products.js'
+import { uploadProductImage } from '../services/storage.js'
+
 import { getCart } from '../utils/storage.js'
 import { formatPrice } from '../utils/format.js'
 
 function AdminDashboardPage() {
+
   const [products, setProducts] = useState([])
   const [editingProduct, setEditingProduct] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
@@ -16,14 +21,22 @@ function AdminDashboardPage() {
 
   const loadProducts = async () => {
     try {
+
       setLoading(true)
       setError('')
+
       const data = await getProducts()
+
       setProducts(data)
+
     } catch (err) {
+
       setError(err.message || 'Không tải được sản phẩm')
+
     } finally {
+
       setLoading(false)
+
     }
   }
 
@@ -32,19 +45,38 @@ function AdminDashboardPage() {
   }, [])
 
   const handleSave = async (updatedProduct) => {
+
     try {
-      await updateProduct(updatedProduct.id, updatedProduct)
+
+      let imageUrl = updatedProduct.image
+
+      if (updatedProduct.selectedFile) {
+        imageUrl = await uploadProductImage(updatedProduct.selectedFile)
+      }
+
+      await updateProduct(updatedProduct.id, {
+        ...updatedProduct,
+        image: imageUrl,
+      })
+
       await loadProducts()
+
       setEditingProduct(null)
+
       setToast('Đã cập nhật sản phẩm thành công!')
       setTimeout(() => setToast(''), 3000)
+
     } catch (err) {
+
       setToast(err.message || 'Cập nhật thất bại')
       setTimeout(() => setToast(''), 3000)
+
     }
+
   }
 
   const filteredProducts = useMemo(() => {
+
     const term = searchTerm.toLowerCase()
 
     return products.filter(
@@ -52,11 +84,15 @@ function AdminDashboardPage() {
         p.name?.toLowerCase().includes(term) ||
         p.origin?.toLowerCase().includes(term)
     )
+
   }, [products, searchTerm])
 
   const cart = getCart()
 
-  const totalRevenue = products.reduce((sum, p) => sum + Number(p.price || 0), 0)
+  const totalRevenue = products.reduce(
+    (sum, p) => sum + Number(p.price || 0),
+    0
+  )
 
   const avgRating = products.length
     ? (
@@ -81,7 +117,9 @@ function AdminDashboardPage() {
     {
       label: 'Trung bình giá',
       value: formatPrice(
-        products.length ? Math.round(totalRevenue / products.length) : 0
+        products.length
+          ? Math.round(totalRevenue / products.length)
+          : 0
       ),
       icon: DollarSign,
       color: 'from-gold-400 to-gold-500',
@@ -118,6 +156,7 @@ function AdminDashboardPage() {
 
   return (
     <div className="flex min-h-screen bg-gray-50">
+
       <AdminSidebar />
 
       <div className="flex-1 p-6 lg:p-8 overflow-auto">
@@ -132,23 +171,29 @@ function AdminDashboardPage() {
           <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
             Dashboard
           </h1>
+
           <p className="text-gray-500 mt-1">
             Quản lý sản phẩm và giá cả
           </p>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+
           {stats.map((stat, i) => (
+
             <div
               key={i}
               className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100"
             >
+
               <div className="flex items-center justify-between mb-3">
+
                 <div
                   className={`w-10 h-10 rounded-xl bg-gradient-to-br ${stat.color} flex items-center justify-center`}
                 >
                   <stat.icon className="w-5 h-5 text-white" />
                 </div>
+
               </div>
 
               <p className="text-2xl font-bold text-gray-900">
@@ -158,8 +203,11 @@ function AdminDashboardPage() {
               <p className="text-sm text-gray-400 mt-0.5">
                 {stat.label}
               </p>
+
             </div>
+
           ))}
+
         </div>
 
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -171,6 +219,7 @@ function AdminDashboardPage() {
             </h2>
 
             <div className="relative w-full sm:w-64">
+
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
 
               <input
@@ -180,6 +229,7 @@ function AdminDashboardPage() {
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               />
+
             </div>
 
           </div>
@@ -189,6 +239,7 @@ function AdminDashboardPage() {
             <table className="w-full">
 
               <thead>
+
                 <tr className="border-b border-gray-100">
 
                   <th className="text-left text-xs font-semibold text-gray-400 px-5 py-3">
@@ -216,21 +267,24 @@ function AdminDashboardPage() {
                   </th>
 
                 </tr>
+
               </thead>
 
               <tbody>
 
                 {filteredProducts.map((product) => {
 
-                  const sellingPrice = product.salePrice || product.price
+                  const sellingPrice =
+                    product.salePrice || product.price
+
                   const originalPrice = product.price
 
                   const inStock =
-                    product.inStock !== undefined
-                      ? product.inStock
-                      : product.status === 'Còn hàng' || Number(product.stock) > 0
+                    product.status === 'Còn hàng' ||
+                    Number(product.stock) > 0
 
                   return (
+
                     <tr key={product.id} className="border-b border-gray-50">
 
                       <td className="px-5 py-4">
@@ -244,6 +298,7 @@ function AdminDashboardPage() {
                           />
 
                           <div>
+
                             <p className="font-medium text-gray-800 text-sm">
                               {product.name}
                             </p>
@@ -251,6 +306,7 @@ function AdminDashboardPage() {
                             <p className="text-xs text-gray-400">
                               {product.unit}
                             </p>
+
                           </div>
 
                         </div>
@@ -287,16 +343,19 @@ function AdminDashboardPage() {
                           onClick={() => setEditingProduct(product)}
                           className="inline-flex items-center gap-1 text-sm text-brand-600"
                         >
-                          <Edit3 className="w-4 h-4" /> Sửa
+                          <Edit3 className="w-4 h-4" />
+                          Sửa
                         </button>
 
                       </td>
 
                     </tr>
+
                   )
                 })}
 
               </tbody>
+
             </table>
 
           </div>
@@ -312,6 +371,7 @@ function AdminDashboardPage() {
           onClose={() => setEditingProduct(null)}
         />
       )}
+
     </div>
   )
 }

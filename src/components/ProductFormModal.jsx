@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { X, Save, ImageIcon } from 'lucide-react'
+import { X, Save, ImageIcon, Upload } from 'lucide-react'
 import { formatPrice } from '../utils/format.js'
 
 function ProductFormModal({ product, onSave, onClose }) {
@@ -16,6 +16,9 @@ function ProductFormModal({ product, onSave, onClose }) {
     status: 'Còn hàng',
   })
 
+  const [selectedFile, setSelectedFile] = useState(null)
+  const [previewUrl, setPreviewUrl] = useState('')
+
   useEffect(() => {
     if (product) {
       setFormData({
@@ -30,8 +33,23 @@ function ProductFormModal({ product, onSave, onClose }) {
         stock: product.stock || 0,
         status: product.status || 'Còn hàng',
       })
+
+      setSelectedFile(null)
+      setPreviewUrl('')
     }
   }, [product])
+
+  useEffect(() => {
+    if (!selectedFile) {
+      setPreviewUrl('')
+      return
+    }
+
+    const objectUrl = URL.createObjectURL(selectedFile)
+    setPreviewUrl(objectUrl)
+
+    return () => URL.revokeObjectURL(objectUrl)
+  }, [selectedFile])
 
   const handleChange = (field, value) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
@@ -46,20 +64,24 @@ function ProductFormModal({ product, onSave, onClose }) {
       price: Number(formData.price),
       salePrice: Number(formData.salePrice),
       stock: Number(formData.stock),
+      selectedFile,
     })
   }
 
   if (!product) return null
 
+  const displayImage = previewUrl || formData.image
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      
       <div
         className="absolute inset-0 bg-black/50 backdrop-blur-sm"
         onClick={onClose}
       />
 
       <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+
+        {/* Header */}
 
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-800">
@@ -74,11 +96,15 @@ function ProductFormModal({ product, onSave, onClose }) {
           </button>
         </div>
 
+        {/* Form */}
+
         <form onSubmit={handleSubmit} className="p-6 space-y-5">
+
+          {/* Preview */}
 
           <div className="flex items-center gap-4 p-4 bg-gray-50 rounded-xl">
             <img
-              src={formData.image}
+              src={displayImage || 'https://via.placeholder.com/150?text=No+Image'}
               alt={formData.name}
               className="w-16 h-16 rounded-xl object-cover"
             />
@@ -94,6 +120,8 @@ function ProductFormModal({ product, onSave, onClose }) {
             </div>
           </div>
 
+          {/* Name */}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Tên sản phẩm
@@ -107,6 +135,8 @@ function ProductFormModal({ product, onSave, onClose }) {
               required
             />
           </div>
+
+          {/* Prices */}
 
           <div className="grid grid-cols-2 gap-4">
 
@@ -138,6 +168,8 @@ function ProductFormModal({ product, onSave, onClose }) {
 
           </div>
 
+          {/* Origin / Unit */}
+
           <div className="grid grid-cols-2 gap-4">
 
             <div>
@@ -168,6 +200,8 @@ function ProductFormModal({ product, onSave, onClose }) {
 
           </div>
 
+          {/* Badge */}
+
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
               Badge
@@ -180,6 +214,8 @@ function ProductFormModal({ product, onSave, onClose }) {
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
             />
           </div>
+
+          {/* Image URL */}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -194,9 +230,34 @@ function ProductFormModal({ product, onSave, onClose }) {
                 value={formData.image}
                 onChange={(e) => handleChange('image', e.target.value)}
                 className="w-full pl-11 pr-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                placeholder="Dán link ảnh hoặc chọn file bên dưới"
               />
             </div>
           </div>
+
+          {/* Upload file */}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Upload ảnh từ máy
+            </label>
+
+            <label className="flex items-center justify-center gap-2 w-full px-4 py-3 bg-gray-50 border border-dashed border-gray-300 rounded-xl text-sm text-gray-600 cursor-pointer hover:bg-gray-100 transition-all">
+              <Upload className="w-4 h-4" />
+              <span>{selectedFile ? selectedFile.name : 'Chọn file ảnh'}</span>
+
+              <input
+                type="file"
+                accept="image/*"
+                onChange={(e) =>
+                  setSelectedFile(e.target.files?.[0] || null)
+                }
+                className="hidden"
+              />
+            </label>
+          </div>
+
+          {/* Stock */}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
@@ -210,6 +271,8 @@ function ProductFormModal({ product, onSave, onClose }) {
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
             />
           </div>
+
+          {/* Buttons */}
 
           <div className="flex gap-3 pt-2">
 
