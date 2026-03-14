@@ -1,10 +1,12 @@
 import { useState, useEffect } from 'react'
-import { X, Save, ImageIcon, Upload } from 'lucide-react'
+import { X, Save, ImageIcon, Upload, Loader2 } from 'lucide-react'
 import { formatPrice } from '../utils/format.js'
 
-function ProductFormModal({ product, onSave, onClose }) {
+function ProductFormModal({ product, onSave, onClose, saving }) {
   const [formData, setFormData] = useState({
     name: '',
+    slug: '',
+    category: '',
     price: 0,
     salePrice: 0,
     origin: '',
@@ -23,12 +25,14 @@ function ProductFormModal({ product, onSave, onClose }) {
     if (product) {
       setFormData({
         name: product.name || '',
+        slug: product.slug || '',
+        category: product.category || '',
         price: product.price || 0,
-        salePrice: product.salePrice || 0,
+        salePrice: product.salePrice || product.sale_price || 0,
         origin: product.origin || '',
         unit: product.unit || '',
         description: product.description || '',
-        image: product.image || '',
+        image: product.image || product.image_url || '',
         badge: product.badge || '',
         stock: product.stock || 0,
         status: product.status || 'Còn hàng',
@@ -85,7 +89,7 @@ function ProductFormModal({ product, onSave, onClose }) {
 
         <div className="flex items-center justify-between p-6 border-b border-gray-100">
           <h2 className="text-xl font-bold text-gray-800">
-            Chỉnh sửa sản phẩm
+            {product.id ? 'Chỉnh sửa sản phẩm' : 'Thêm sản phẩm mới'}
           </h2>
 
           <button
@@ -107,11 +111,14 @@ function ProductFormModal({ product, onSave, onClose }) {
               src={displayImage || 'https://via.placeholder.com/150?text=No+Image'}
               alt={formData.name}
               className="w-16 h-16 rounded-xl object-cover"
+              onError={(e) => {
+                e.target.src = 'https://via.placeholder.com/150?text=No+Image'
+              }}
             />
 
             <div>
               <p className="font-semibold text-gray-800">
-                {formData.name}
+                {formData.name || 'Tên sản phẩm'}
               </p>
 
               <p className="text-sm text-brand-600 font-bold">
@@ -134,6 +141,40 @@ function ProductFormModal({ product, onSave, onClose }) {
               className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
               required
             />
+          </div>
+
+          {/* Slug / Category */}
+
+          <div className="grid grid-cols-2 gap-4">
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Slug
+              </label>
+
+              <input
+                type="text"
+                value={formData.slug}
+                onChange={(e) => handleChange('slug', e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                placeholder="vd: nho-shine-muscat"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Danh mục
+              </label>
+
+              <input
+                type="text"
+                value={formData.category}
+                onChange={(e) => handleChange('category', e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                placeholder="vd: Nho, Cherry, Xoài"
+              />
+            </div>
+
           </div>
 
           {/* Prices */}
@@ -200,18 +241,54 @@ function ProductFormModal({ product, onSave, onClose }) {
 
           </div>
 
-          {/* Badge */}
+          {/* Badge / Status */}
+
+          <div className="grid grid-cols-2 gap-4">
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Badge
+              </label>
+
+              <input
+                type="text"
+                value={formData.badge}
+                onChange={(e) => handleChange('badge', e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+                placeholder="vd: Best Seller, Hot, Mới về"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1.5">
+                Trạng thái
+              </label>
+
+              <select
+                value={formData.status}
+                onChange={(e) => handleChange('status', e.target.value)}
+                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+              >
+                <option value="Còn hàng">Còn hàng</option>
+                <option value="Hết hàng">Hết hàng</option>
+              </select>
+            </div>
+
+          </div>
+
+          {/* Description */}
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Badge
+              Mô tả sản phẩm
             </label>
 
-            <input
-              type="text"
-              value={formData.badge}
-              onChange={(e) => handleChange('badge', e.target.value)}
-              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm"
+            <textarea
+              value={formData.description}
+              onChange={(e) => handleChange('description', e.target.value)}
+              rows={3}
+              className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl text-sm resize-none"
+              placeholder="Mô tả chi tiết sản phẩm..."
             />
           </div>
 
@@ -255,6 +332,16 @@ function ProductFormModal({ product, onSave, onClose }) {
                 className="hidden"
               />
             </label>
+
+            {selectedFile && (
+              <button
+                type="button"
+                onClick={() => setSelectedFile(null)}
+                className="mt-2 text-xs text-red-500 hover:text-red-700"
+              >
+                Xóa file đã chọn
+              </button>
+            )}
           </div>
 
           {/* Stock */}
@@ -279,17 +366,28 @@ function ProductFormModal({ product, onSave, onClose }) {
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-6 py-3 border-2 border-gray-200 text-gray-600 font-medium rounded-xl"
+              disabled={saving}
+              className="flex-1 px-6 py-3 border-2 border-gray-200 text-gray-600 font-medium rounded-xl hover:bg-gray-50 transition-colors disabled:opacity-50"
             >
               Hủy
             </button>
 
             <button
               type="submit"
-              className="flex-1 btn-primary flex items-center justify-center gap-2"
+              disabled={saving}
+              className="flex-1 btn-primary flex items-center justify-center gap-2 disabled:opacity-50"
             >
-              <Save className="w-4 h-4" />
-              Lưu thay đổi
+              {saving ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Đang lưu...
+                </>
+              ) : (
+                <>
+                  <Save className="w-4 h-4" />
+                  Lưu thay đổi
+                </>
+              )}
             </button>
 
           </div>

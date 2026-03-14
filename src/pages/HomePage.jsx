@@ -1,14 +1,27 @@
 import { Link } from 'react-router-dom'
 import { ArrowRight, Truck, ShieldCheck, Leaf, Award, ChevronRight, Star, Zap } from 'lucide-react'
 import ProductCard from '../components/ProductCard.jsx'
-import { getProducts } from '../utils/storage.js'
+import { getProducts } from '../services/products.js'
 import { useState, useEffect } from 'react'
 
 function HomePage() {
   const [products, setProducts] = useState([])
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    setProducts(getProducts())
+    const loadProducts = async () => {
+      try {
+        setLoading(true)
+        const data = await getProducts()
+        setProducts(data)
+      } catch (err) {
+        console.error('HomePage: Failed to load products:', err)
+        setProducts([])
+      } finally {
+        setLoading(false)
+      }
+    }
+    loadProducts()
   }, [])
 
   const featuredProducts = products.slice(0, 4)
@@ -175,11 +188,18 @@ function HomePage() {
             </Link>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
-            {featuredProducts.map((product) => (
-              <ProductCard key={product.id} product={product} />
-            ))}
-          </div>
+          {loading ? (
+            <div className="text-center py-12">
+              <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-gray-400 text-sm">Đang tải sản phẩm...</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 stagger-children">
+              {featuredProducts.map((product) => (
+                <ProductCard key={product.id} product={product} />
+              ))}
+            </div>
+          )}
 
           <div className="sm:hidden text-center mt-8">
             <Link to="/products" className="btn-outline inline-flex items-center gap-2">

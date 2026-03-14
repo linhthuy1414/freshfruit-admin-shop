@@ -1,10 +1,10 @@
 import { useState, useEffect, useMemo } from 'react'
-import { Package, DollarSign, TrendingUp, Edit3, Search, Star } from 'lucide-react'
+import { Package, DollarSign, TrendingUp, Edit3, Search, Star, Plus, Trash2 } from 'lucide-react'
 
 import AdminSidebar from '../components/AdminSidebar.jsx'
 import ProductFormModal from '../components/ProductFormModal.jsx'
 
-import { getProducts, updateProduct } from '../services/products.js'
+import { getProducts, updateProduct, addProduct, deleteProduct } from '../services/products.js'
 import { uploadProductImage } from '../services/storage.js'
 
 import { getCart } from '../utils/storage.js'
@@ -15,9 +15,15 @@ function AdminDashboardPage() {
   const [products, setProducts] = useState([])
   const [editingProduct, setEditingProduct] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
-  const [toast, setToast] = useState('')
+  const [toast, setToast] = useState({ message: '', type: '' })
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const showToast = (message, type = 'success') => {
+    setToast({ message, type })
+    setTimeout(() => setToast({ message: '', type: '' }), 3000)
+  }
 
   const loadProducts = async () => {
     try {
@@ -48,31 +54,76 @@ function AdminDashboardPage() {
 
     try {
 
+      setSaving(true)
+
       let imageUrl = updatedProduct.image
 
       if (updatedProduct.selectedFile) {
         imageUrl = await uploadProductImage(updatedProduct.selectedFile)
       }
 
-      await updateProduct(updatedProduct.id, {
+      const productData = {
         ...updatedProduct,
         image: imageUrl,
-      })
+      }
+
+      // Remove temporary fields
+      delete productData.selectedFile
+
+      if (updatedProduct.id) {
+        // UPDATE existing product
+        await updateProduct(updatedProduct.id, productData)
+        showToast('Đã cập nhật sản phẩm thành công!', 'success')
+      } else {
+        // ADD new product
+        await addProduct(productData)
+        showToast('Đã thêm sản phẩm mới thành công!', 'success')
+      }
 
       await loadProducts()
 
       setEditingProduct(null)
 
-      setToast('Đã cập nhật sản phẩm thành công!')
-      setTimeout(() => setToast(''), 3000)
-
     } catch (err) {
 
-      setToast(err.message || 'Cập nhật thất bại')
-      setTimeout(() => setToast(''), 3000)
+      console.error('Save error:', err)
+      showToast(err.message || 'Lưu sản phẩm thất bại', 'error')
+
+    } finally {
+
+      setSaving(false)
 
     }
 
+  }
+
+  const handleDelete = async (productId) => {
+    if (!window.confirm('Bạn có chắc muốn xóa sản phẩm này?')) return
+
+    try {
+      await deleteProduct(productId)
+      await loadProducts()
+      showToast('Đã xóa sản phẩm!', 'success')
+    } catch (err) {
+      showToast(err.message || 'Xóa thất bại', 'error')
+    }
+  }
+
+  const handleAddNew = () => {
+    setEditingProduct({
+      name: '',
+      slug: '',
+      category: '',
+      price: 0,
+      salePrice: 0,
+      origin: '',
+      unit: '',
+      description: '',
+      image: '',
+      badge: '',
+      stock: 0,
+      status: 'Còn hàng',
+    })
   }
 
   const filteredProducts = useMemo(() => {
@@ -136,8 +187,11 @@ function AdminDashboardPage() {
     return (
       <div className="flex min-h-screen bg-gray-50">
         <AdminSidebar />
-        <div className="flex-1 p-6 lg:p-8">
-          <p className="text-gray-500">Đang tải dữ liệu...</p>
+        <div className="flex-1 p-6 lg:p-8 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+            <p className="text-gray-500">Đang tải dữ liệu...</p>
+          </div>
         </div>
       </div>
     )
@@ -148,7 +202,15 @@ function AdminDashboardPage() {
       <div className="flex min-h-screen bg-gray-50">
         <AdminSidebar />
         <div className="flex-1 p-6 lg:p-8">
-          <p className="text-red-500">Lỗi: {error}</p>
+          <div className="bg-red-50 text-red-600 p-4 rounded-xl border border-red-200">
+            <p className="font-medium">Lỗi: {error}</p>
+            <button
+              onClick={loadProducts}
+              className="mt-2 text-sm underline hover:no-underline"
+            >
+              Thử lại
+            </button>
+          </div>
         </div>
       </div>
     )
@@ -161,20 +223,34 @@ function AdminDashboardPage() {
 
       <div className="flex-1 p-6 lg:p-8 overflow-auto">
 
-        {toast && (
-          <div className="fixed top-6 right-6 z-50 bg-brand-500 text-white px-6 py-3 rounded-xl shadow-xl text-sm font-medium">
-            {toast}
+        {toast.message && (
+          <div className={`fixed top-6 right-6 z-50 px-6 py-3 rounded-xl shadow-xl text-sm font-medium transition-all ${
+            toast.type === 'error'
+              ? 'bg-red-500 text-white'
+              : 'bg-brand-500 text-white'
+          }`}>
+            {toast.message}
           </div>
         )}
 
-        <div className="mb-8">
-          <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
-            Dashboard
-          </h1>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl lg:text-3xl font-bold text-gray-900">
+              Dashboard
+            </h1>
 
-          <p className="text-gray-500 mt-1">
-            Quản lý sản phẩm và giá cả
-          </p>
+            <p className="text-gray-500 mt-1">
+              Quản lý sản phẩm và giá cả
+            </p>
+          </div>
+
+          <button
+            onClick={handleAddNew}
+            className="btn-primary flex items-center gap-2"
+          >
+            <Plus className="w-4 h-4" />
+            Thêm sản phẩm
+          </button>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
@@ -285,7 +361,7 @@ function AdminDashboardPage() {
 
                   return (
 
-                    <tr key={product.id} className="border-b border-gray-50">
+                    <tr key={product.id} className="border-b border-gray-50 hover:bg-gray-50/50 transition-colors">
 
                       <td className="px-5 py-4">
 
@@ -294,7 +370,10 @@ function AdminDashboardPage() {
                           <img
                             src={product.image}
                             alt={product.name}
-                            className="w-12 h-12 rounded-xl object-cover"
+                            className="w-12 h-12 rounded-xl object-cover bg-gray-100"
+                            onError={(e) => {
+                              e.target.src = 'https://via.placeholder.com/48?text=No+Img'
+                            }}
                           />
 
                           <div>
@@ -332,20 +411,35 @@ function AdminDashboardPage() {
                       </td>
 
                       <td className="px-5 py-4">
-                        <span className="text-xs font-medium">
+                        <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
+                          inStock
+                            ? 'bg-green-50 text-green-600'
+                            : 'bg-red-50 text-red-500'
+                        }`}>
                           {inStock ? 'Còn hàng' : 'Hết hàng'}
                         </span>
                       </td>
 
                       <td className="px-5 py-4 text-right">
 
-                        <button
-                          onClick={() => setEditingProduct(product)}
-                          className="inline-flex items-center gap-1 text-sm text-brand-600"
-                        >
-                          <Edit3 className="w-4 h-4" />
-                          Sửa
-                        </button>
+                        <div className="flex items-center justify-end gap-2">
+
+                          <button
+                            onClick={() => setEditingProduct(product)}
+                            className="inline-flex items-center gap-1 text-sm text-brand-600 hover:text-brand-700"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                            Sửa
+                          </button>
+
+                          <button
+                            onClick={() => handleDelete(product.id)}
+                            className="inline-flex items-center gap-1 text-sm text-red-400 hover:text-red-600"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+
+                        </div>
 
                       </td>
 
@@ -360,6 +454,38 @@ function AdminDashboardPage() {
 
           </div>
 
+          {/* Mobile card view */}
+          <div className="md:hidden p-4 space-y-3">
+            {filteredProducts.map((product) => {
+
+              const sellingPrice = product.salePrice || product.price
+              const inStock = product.status === 'Còn hàng' || Number(product.stock) > 0
+
+              return (
+                <div key={product.id} className="flex items-center gap-3 p-3 bg-gray-50 rounded-xl">
+                  <img
+                    src={product.image}
+                    alt={product.name}
+                    className="w-14 h-14 rounded-xl object-cover bg-gray-100"
+                    onError={(e) => {
+                      e.target.src = 'https://via.placeholder.com/56?text=No+Img'
+                    }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-800 text-sm truncate">{product.name}</p>
+                    <p className="text-xs text-brand-600 font-bold">{formatPrice(sellingPrice)}</p>
+                  </div>
+                  <button
+                    onClick={() => setEditingProduct(product)}
+                    className="p-2 text-brand-600 hover:bg-brand-50 rounded-lg"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                </div>
+              )
+            })}
+          </div>
+
         </div>
 
       </div>
@@ -369,6 +495,7 @@ function AdminDashboardPage() {
           product={editingProduct}
           onSave={handleSave}
           onClose={() => setEditingProduct(null)}
+          saving={saving}
         />
       )}
 

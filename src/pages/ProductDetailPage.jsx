@@ -1,7 +1,8 @@
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useState, useEffect } from 'react'
 import { ArrowLeft, ShoppingCart, Star, Check, Minus, Plus, Truck, ShieldCheck, RotateCcw, ChevronRight } from 'lucide-react'
-import { getProducts, addToCart } from '../utils/storage.js'
+import { getProducts } from '../services/products.js'
+import { addToCart } from '../utils/storage.js'
 import { formatPrice, calcDiscount } from '../utils/format.js'
 import ProductCard from '../components/ProductCard.jsx'
 
@@ -12,14 +13,29 @@ function ProductDetailPage() {
   const [relatedProducts, setRelatedProducts] = useState([])
   const [quantity, setQuantity] = useState(1)
   const [added, setAdded] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const products = getProducts()
-    const found = products.find((p) => p.id === Number(id))
-    if (found) {
-      setProduct(found)
-      setRelatedProducts(products.filter((p) => p.id !== found.id).slice(0, 4))
+    const loadProduct = async () => {
+      try {
+        setLoading(true)
+        const products = await getProducts()
+        const found = products.find((p) => p.id === Number(id))
+        if (found) {
+          setProduct(found)
+          setRelatedProducts(products.filter((p) => p.id !== found.id).slice(0, 4))
+        } else {
+          setProduct(null)
+        }
+      } catch (err) {
+        console.error('ProductDetailPage: Failed to load:', err)
+        setProduct(null)
+      } finally {
+        setLoading(false)
+      }
     }
+
+    loadProduct()
     window.scrollTo(0, 0)
   }, [id])
 
@@ -28,6 +44,17 @@ function ProductDetailPage() {
     addToCart(product, quantity)
     setAdded(true)
     setTimeout(() => setAdded(false), 2000)
+  }
+
+  if (loading) {
+    return (
+      <div className="pt-24 pb-16 min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-10 h-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-gray-400 text-sm">Đang tải sản phẩm...</p>
+        </div>
+      </div>
+    )
   }
 
   if (!product) {
@@ -67,6 +94,9 @@ function ProductDetailPage() {
                 src={product.image}
                 alt={product.name}
                 className="w-full h-full object-cover"
+                onError={(e) => {
+                  e.target.src = 'https://via.placeholder.com/600?text=No+Image'
+                }}
               />
               {product.badge && (
                 <div className="absolute top-5 left-5">
@@ -103,20 +133,20 @@ function ProductDetailPage() {
                   <Star
                     key={i}
                     className={`w-5 h-5 ${
-                      i < Math.floor(product.rating)
+                      i < Math.floor(product.rating || 0)
                         ? 'text-gold-400 fill-gold-400'
                         : 'text-gray-200 fill-gray-200'
                     }`}
                   />
                 ))}
               </div>
-              <span className="text-sm text-gray-500">{product.rating} ({product.reviews} đánh giá)</span>
+              <span className="text-sm text-gray-500">{product.rating || 0} ({product.reviews || 0} đánh giá)</span>
             </div>
 
             {/* Price */}
             <div className="flex items-end gap-3 mb-6 pb-6 border-b border-gray-100">
-              <span className="text-3xl font-bold text-brand-600">{formatPrice(product.price)}</span>
-              {product.originalPrice > product.price && (
+              <span className="text-3xl font-bold text-brand-600">{formatPrice(product.salePrice || product.price)}</span>
+              {product.originalPrice > (product.salePrice || product.price) && (
                 <span className="text-lg text-gray-400 line-through mb-0.5">{formatPrice(product.originalPrice)}</span>
               )}
               <span className="text-sm text-gray-400 mb-1">/ {product.unit}</span>

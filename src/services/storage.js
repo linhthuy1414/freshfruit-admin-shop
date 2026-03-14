@@ -25,5 +25,9 @@ export async function uploadProductImage(file) {
     .from('product-images')
     .getPublicUrl(filePath)
 
+  if (!data?.publicUrl) {
+    throw new Error('Không lấy được URL ảnh sau khi upload')
+  }
+
   return data.publicUrl
 }
