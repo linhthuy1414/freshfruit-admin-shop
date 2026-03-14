@@ -1,58 +1,89 @@
-import { supabase } from '../lib/supabase.js'
+import { supabase, STORAGE_BUCKET } from '../lib/supabase.js'
 
-const BUCKET_NAME = 'product-images'
-
+/**
+ * Upload ảnh sản phẩm lên Supabase Storage.
+ *
+ * Trả về:
+ *   { success: true, url: '...' }   — upload thành công
+ *   { success: false, error: '...' } — upload thất bại (bucket chưa tạo, policy sai, v.v.)
+ *
+ * KHÔNG throw error để caller có thể quyết định:
+ *   - giữ ảnh cũ nếu upload fail
+ *   - chỉ hiện toast 1 lần
+ */
 export async function uploadProductImage(file) {
-  if (!file) throw new Error('Chưa chọn ảnh')
+  // ── Validate input ──────────────────────────────────────────
+  if (!file) {
+    return { success: false, error: 'Chưa chọn ảnh.' }
+  }
 
-  // Validate file type
   if (!file.type.startsWith('image/')) {
-    throw new Error('File không phải là ảnh')
+    return { success: false, error: 'File không phải là ảnh.' }
   }
 
-  // Validate file size (max 5MB)
-  const MAX_SIZE = 5 * 1024 * 1024
+  const MAX_SIZE = 5 * 1024 * 1024 // 5 MB
   if (file.size > MAX_SIZE) {
-    throw new Error('Ảnh quá lớn (tối đa 5MB)')
+    return { success: false, error: 'Ảnh quá lớn (tối đa 5MB).' }
   }
 
+  // ── Generate unique file path ───────────────────────────────
   const ext = file.name.split('.').pop()
-  const fileName = `${Date.now()}-${Math.random()
-    .toString(36)
-    .substring(2)}.${ext}`
+  const fileName = `${Date.now()}-${Math.random().toString(36).substring(2)}.${ext}`
   const filePath = `products/${fileName}`
 
-  const { error: uploadError } = await supabase.storage
-    .from(BUCKET_NAME)
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: false,
-      contentType: file.type,
-    })
+  // ── Upload ──────────────────────────────────────────────────
+  try {
+    const { error: uploadError } = await supabase.storage
+      .from(STORAGE_BUCKET)
+      .upload(filePath, file, {
+        cacheControl: '3600',
+        upsert: false,
+        contentType: file.type,
+      })
 
-  if (uploadError) {
-    // Provide user-friendly error messages
-    if (uploadError.message?.includes('Bucket not found')) {
-      throw new Error(
-        'Bucket "product-images" chưa được tạo trong Supabase. ' +
-        'Vào Supabase Dashboard → Storage → New Bucket → tên: product-images (public).'
-      )
+    if (uploadError) {
+      return { success: false, error: mapUploadError(uploadError) }
     }
-    if (uploadError.message?.includes('new row violates row-level security')) {
-      throw new Error(
-        'Chưa cấu hình quyền upload. Vào Supabase Dashboard → Storage → product-images → Policies → thêm INSERT policy cho authenticated users.'
-      )
+
+    // ── Get public URL ──────────────────────────────────────
+    const { data } = supabase.storage
+      .from(STORAGE_BUCKET)
+      .getPublicUrl(filePath)
+
+    if (!data?.publicUrl) {
+      return { success: false, error: 'Không lấy được URL ảnh sau khi upload.' }
     }
-    throw new Error(`Upload thất bại: ${uploadError.message}`)
+
+    return { success: true, url: data.publicUrl }
+  } catch (err) {
+    // Network error hoặc exception không lường trước
+    console.error('[uploadProductImage] unexpected error:', err)
+    return { success: false, error: 'Lỗi kết nối khi upload ảnh. Vui lòng thử lại.' }
+  }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────
+
+function mapUploadError(uploadError) {
+  const msg = uploadError.message || ''
+
+  if (msg.includes('Bucket not found')) {
+    return (
+      `Bucket "${STORAGE_BUCKET}" chưa được tạo trên Supabase.\n` +
+      `→ Vào Supabase Dashboard → Storage → New Bucket → tên: ${STORAGE_BUCKET} (public).`
+    )
   }
 
-  const { data } = supabase.storage
-    .from(BUCKET_NAME)
-    .getPublicUrl(filePath)
-
-  if (!data?.publicUrl) {
-    throw new Error('Không lấy được URL ảnh sau khi upload')
+  if (msg.includes('new row violates row-level security')) {
+    return (
+      `Chưa cấu hình quyền upload.\n` +
+      `→ Supabase Dashboard → Storage → ${STORAGE_BUCKET} → Policies → thêm INSERT policy.`
+    )
   }
 
-  return data.publicUrl
+  if (msg.includes('The resource already exists')) {
+    return 'File ảnh đã tồn tại. Vui lòng thử lại.'
+  }
+
+  return `Upload thất bại: ${msg}`
 }

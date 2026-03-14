@@ -56,33 +56,56 @@ function AdminDashboardPage() {
 
       setSaving(true)
 
-      let imageUrl = updatedProduct.image
+      // ── Xác định ảnh: chỉ upload nếu user chọn file mới ──
+      let imageUrl = updatedProduct.image  // giữ ảnh cũ làm mặc định
+      let uploadWarning = ''
 
       if (updatedProduct.selectedFile) {
-        imageUrl = await uploadProductImage(updatedProduct.selectedFile)
-      }
+        const result = await uploadProductImage(updatedProduct.selectedFile)
 
+        if (result.success) {
+          imageUrl = result.url
+        } else {
+          // Upload fail → giữ ảnh cũ, chỉ cảnh báo, KHÔNG block save
+          uploadWarning = result.error
+          console.warn('[handleSave] Upload ảnh thất bại, giữ ảnh cũ:', result.error)
+        }
+      }
+      // Nếu không có selectedFile → không đụng tới storage, imageUrl = ảnh cũ
+
+      // ── Chuẩn bị payload ──
       const productData = {
         ...updatedProduct,
         image: imageUrl,
       }
 
-      // Remove temporary fields
+      // Xóa field tạm không liên quan tới DB
       delete productData.selectedFile
 
+      // ── Save vào Supabase ──
       if (updatedProduct.id) {
-        // UPDATE existing product
         await updateProduct(updatedProduct.id, productData)
-        showToast('Đã cập nhật sản phẩm thành công!', 'success')
       } else {
-        // ADD new product
         await addProduct(productData)
-        showToast('Đã thêm sản phẩm mới thành công!', 'success')
       }
 
       await loadProducts()
-
       setEditingProduct(null)
+
+      // ── Toast feedback ──
+      if (uploadWarning) {
+        showToast(
+          `Đã lưu sản phẩm (giữ ảnh cũ). Lý do: ${uploadWarning}`,
+          'error'
+        )
+      } else {
+        showToast(
+          updatedProduct.id
+            ? 'Đã cập nhật sản phẩm thành công!'
+            : 'Đã thêm sản phẩm mới thành công!',
+          'success'
+        )
+      }
 
     } catch (err) {
 
